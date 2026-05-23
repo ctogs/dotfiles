@@ -1,16 +1,18 @@
 return {
   {
-    "carlos-rodrigo/claude-code.nvim",
+    "coder/claudecode.nvim",
     dependencies = { "folke/snacks.nvim" },
-    cmd = { "ClaudeCode", "ClaudeCodeFocus" },
+    config = true,
     keys = {
-      { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude Code" },
-      { "<leader>af", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude Code" },
-      { "<leader>ab", "<cmd>ClaudeCodeAdd %<cr>", desc = "Add current buffer to Claude" },
+      { "<leader>a", nil, desc = "AI/Claude Code" },
+      { "<leader>ac", "<cmd>ClaudeCode<cr>", desc = "Toggle Claude" },
+      { "<leader>af", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude" },
+      { "<leader>ar", "<cmd>ClaudeCode --resume<cr>", desc = "Resume Claude" },
+      { "<leader>aC", "<cmd>ClaudeCode --continue<cr>", desc = "Continue Claude" },
+      { "<leader>ab", "<cmd>ClaudeCodeAdd %<cr>", desc = "Add current buffer" },
+      { "<leader>as", "<cmd>ClaudeCodeSend<cr>", mode = "v", desc = "Send selection" },
+      { "<leader>aa", "<cmd>ClaudeCodeDiffAccept<cr>", desc = "Accept diff" },
+      { "<leader>ad", "<cmd>ClaudeCodeDiffDeny<cr>", desc = "Deny diff" },
     },
-    opts = {
-      -- Optional: if claude is installed in a custom directory
-      -- terminal_cmd = "claude", 
-    },
-  }
+  },
 }

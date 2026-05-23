@@ -38,7 +38,12 @@ source $ZSH/oh-my-zsh.sh
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# Create a tmux dev session with editor, claude, and server windows
+# Create a tmux dev session with a Cursor-style pane layout:
+#   +----------------+--------+
+#   | nvim (editor)  | claude |
+#   +----------------+        |
+#   | server         |        |
+#   +----------------+--------+
 dev() {
   local dir="${1:-.}"
   dir="$(cd "$dir" && pwd)"
@@ -58,19 +63,20 @@ dev() {
     venv_path="$dir/backend/.venv/bin/activate"
   fi
 
-  # Set venv as tmux environment variable so new shells auto-activate
-  if [[ -n "$venv_path" ]]; then
-    tmux new-session -d -s "$name" -n editor -c "$dir" -e "DEV_VENV=$venv_path" "nvim"
-    tmux new-window -t "=$name" -n claude -c "$dir"
-    tmux new-window -t "=$name" -n server -c "$dir"
-  else
-    tmux new-session -d -s "$name" -n editor -c "$dir" "nvim"
-    tmux new-window -t "=$name" -n claude -c "$dir"
-    tmux new-window -t "=$name" -n server -c "$dir"
-  fi
+  local env_args=()
+  [[ -n "$venv_path" ]] && env_args=(-e "DEV_VENV=$venv_path")
 
-  # Attach and land on the editor window
-  tmux select-window -t "=$name:editor"
+  # Pane 0: nvim (left, full height initially)
+  tmux new-session -d -s "$name" -n dev -c "$dir" "${env_args[@]}" "nvim"
+
+  # Pane 1: claude on the right (~30% width)
+  tmux split-window -h -t "=$name:dev" -p 30 -c "$dir" "${env_args[@]}"
+
+  # Pane 2: server below the editor (~25% of left column height)
+  tmux split-window -v -t "=$name:dev.0" -p 25 -c "$dir" "${env_args[@]}"
+
+  # Focus the editor pane
+  tmux select-pane -t "=$name:dev.0"
   tmux attach -t "=$name"
 }
 
