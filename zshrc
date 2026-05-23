@@ -38,12 +38,7 @@ source $ZSH/oh-my-zsh.sh
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-# Create a tmux dev session with a Cursor-style pane layout:
-#   +----------------+--------+
-#   | nvim (editor)  | claude |
-#   +----------------+        |
-#   | server         |        |
-#   +----------------+--------+
+# Create a tmux dev session
 dev() {
   local dir="${1:-.}"
   dir="$(cd "$dir" && pwd)"
