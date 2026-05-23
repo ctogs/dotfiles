@@ -66,18 +66,66 @@ dev() {
   local env_args=()
   [[ -n "$venv_path" ]] && env_args=(-e "DEV_VENV=$venv_path")
 
-  # Pane 0: nvim (left, full height initially)
-  tmux new-session -d -s "$name" -n dev -c "$dir" "${env_args[@]}" "nvim"
-
-  # Pane 1: claude on the right (~30% width)
-  tmux split-window -h -t "=$name:dev" -p 30 -c "$dir" "${env_args[@]}"
-
-  # Pane 2: server below the editor (~25% of left column height)
-  tmux split-window -v -t "=$name:dev.0" -p 25 -c "$dir" "${env_args[@]}"
-
-  # Focus the editor pane
-  tmux select-pane -t "=$name:dev.0"
+  tmux new-session -d -s "$name" -n editor -c "$dir" "${env_args[@]}" "nvim"
+  tmux new-window -d -t "=$name" -n shell -c "$dir" "${env_args[@]}"
   tmux attach -t "=$name"
+}
+
+# Add a worktree as a new window in the current tmux session.
+# Usage: devw <name>          # creates .worktrees/<name> on a new branch <name>
+#        devw <name> <ref>    # creates worktree from existing branch/ref
+#        devw <path>          # opens an existing path as a window
+devw() {
+  local arg="${1:?usage: devw <name|path> [ref]}"
+  local ref="$2"
+
+  if [[ -z "$TMUX" ]]; then
+    echo "devw must be run inside a tmux session"
+    return 1
+  fi
+
+  local repo_root dir name
+  repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [[ -z "$repo_root" ]]; then
+    echo "devw: not inside a git repo"
+    return 1
+  fi
+
+  # If arg is an existing directory, treat it as a path; otherwise treat as a worktree name.
+  if [[ -d "$arg" ]]; then
+    dir="$(cd "$arg" && pwd)"
+    name="$(basename "$dir")"
+  else
+    name="$arg"
+    dir="$repo_root/.worktrees/$name"
+    if [[ ! -d "$dir" ]]; then
+      mkdir -p "$repo_root/.worktrees"
+      if [[ -n "$ref" ]]; then
+        git -C "$repo_root" worktree add "$dir" "$ref" || return 1
+      elif git -C "$repo_root" show-ref --verify --quiet "refs/heads/$name"; then
+        git -C "$repo_root" worktree add "$dir" "$name" || return 1
+      else
+        git -C "$repo_root" worktree add -b "$name" "$dir" || return 1
+      fi
+    fi
+  fi
+
+  local session
+  session="$(tmux display-message -p '#S')"
+
+  if tmux list-windows -t "=$session" -F '#W' | grep -qx "$name"; then
+    tmux select-window -t "=$session:$name"
+    return
+  fi
+
+  local venv_path=""
+  [[ -f "$dir/.venv/bin/activate" ]] && venv_path="$dir/.venv/bin/activate"
+  [[ -z "$venv_path" && -f "$dir/backend/.venv/bin/activate" ]] && venv_path="$dir/backend/.venv/bin/activate"
+
+  local env_args=()
+  [[ -n "$venv_path" ]] && env_args=(-e "DEV_VENV=$venv_path")
+
+  tmux new-window -t "=$session" -n "$name" -c "$dir" "${env_args[@]}" "nvim"
 }
 
 # Auto-activate venv if DEV_VENV is set by tmux session
