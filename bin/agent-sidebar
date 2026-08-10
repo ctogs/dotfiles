@@ -22,8 +22,8 @@ render() {
   rows=""
   for f in "$STATE_DIR"/*.json; do
     [[ -e "$f" ]] || continue
-    IFS=$'\t' read -r pid status tsess twin proj branch < <(
-      jq -r '[.pid // 0, .status // "?", .tmux_session // "", .tmux_window // "", .project_name // "?", .git_branch // ""] | @tsv' "$f" 2>/dev/null)
+    IFS=$'\x1f' read -r pid status tsess twin proj branch < <(
+      jq -r '[.pid // 0, .status // "?", .tmux_session // "", .tmux_window // "", .project_name // "?", .git_branch // ""] | map(tostring) | join("\u001f")' "$f" 2>/dev/null)
     [[ -n "${pid:-}" && "$pid" != "0" ]] || continue
     kill -0 "$pid" 2>/dev/null || continue
     rows+="${tsess:-~other}"$'\x1f'"$twin"$'\x1f'"$status"$'\x1f'"$proj"$'\x1f'"$branch"$'\n'

@@ -7,8 +7,8 @@ rows=""
 
 for f in "$STATE_DIR"/*.json; do
   [[ -e "$f" ]] || continue
-  IFS=$'\t' read -r pid status tsess < <(
-    jq -r '[.pid // 0, .status // "?", .tmux_session // ""] | @tsv' "$f" 2>/dev/null)
+  IFS=$'\x1f' read -r pid status tsess < <(
+    jq -r '[.pid // 0, .status // "?", .tmux_session // ""] | map(tostring) | join("\u001f")' "$f" 2>/dev/null)
   [[ -n "${pid:-}" && "$pid" != "0" ]] || continue
   kill -0 "$pid" 2>/dev/null || continue
   case "$status" in
