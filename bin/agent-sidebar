@@ -56,9 +56,9 @@ draw() {
       if [[ "$t" != "$last" ]]; then
         emit ""
         if [[ "$t" == "~other" ]]; then
-          emit "$M▾ other$N"
+          emit "${M}▾ other$N"
         else
-          emit "$M▾ $t$N" "=$t"
+          emit "${M}▾ $t$N" "=$t"
         fi
         last="$t"
       fi
@@ -69,7 +69,7 @@ draw() {
   fi
 
   emit ""
-  emit "$D● ready  ○ working  ‼ perm$N"
+  emit "${D}● ready  ○ working  ‼ perm$N"
   emit "${D}click to jump · q quit · prefix+a hide$N"
 
   printf '\033[H\033[2J'
