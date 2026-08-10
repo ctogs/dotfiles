@@ -131,7 +131,14 @@ export PATH="$HOME/dotfiles/bin:$PATH"
 # nvim (left) | claude (right) over a full-width shell.
 feat() {
   local name="${1:?usage: feat <name> [repo ...]}"; shift
-  local spec_dir="$HOME/Documents/cambrient-features/features/$name"
+  local features_root="$HOME/Documents/cambrient-features/features"
+  local existing=("$features_root"/*-"$name"(N/))
+  local spec_dir
+  if (( ${#existing} )); then
+    spec_dir="${existing[1]}"
+  else
+    spec_dir="$features_root/$(date +%F)-$name"
+  fi
   mkdir -p "$spec_dir"
   local t
   for t in research scenarios slices; do
@@ -170,7 +177,8 @@ feat() {
   fi
 }
 
-# Tear down a feature: kill session, remove its worktrees (dirty ones are kept)
+# Ship a feature: kill session, remove worktrees (dirty ones kept), stamp the
+# spec folder with a --shipped-<date> suffix and commit the rename.
 featdone() {
   local name="${1:?usage: featdone <name>}"
   tmux kill-session -t "=$name" 2>/dev/null
@@ -180,6 +188,17 @@ featdone() {
     git -C "${main_dir:-$wt}" worktree remove "$wt" 2>/dev/null || echo "featdone: dirty worktree kept: $wt"
   done
   rmdir "$HOME/worktrees/$name" 2>/dev/null
+
+  local repo_root="$HOME/Documents/cambrient-features"
+  local existing=("$repo_root/features"/*-"$name"(N/))
+  if (( ${#existing} )); then
+    local src="${existing[1]}"
+    local dest="${src}--shipped-$(date +%F)"
+    git -C "$repo_root" mv "$src" "$dest" 2>/dev/null || command mv "$src" "$dest"
+    git -C "$repo_root" add -A
+    git -C "$repo_root" commit -qm "ship $name" 2>/dev/null
+    echo "featdone: shipped $(basename "$dest")"
+  fi
 }
 
 # Auto-activate venv if DEV_VENV is set by tmux session
