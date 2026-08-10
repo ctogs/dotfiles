@@ -177,8 +177,8 @@ feat() {
   fi
 }
 
-# Ship a feature: kill session, remove worktrees (dirty ones kept), stamp the
-# spec folder with a --shipped-<date> suffix and commit the rename.
+# Ship a feature: kill session, remove worktrees (dirty ones kept), record the
+# ship date as a "ship <name>" commit in cambrient-features.
 featdone() {
   local name="${1:?usage: featdone <name>}"
   tmux kill-session -t "=$name" 2>/dev/null
@@ -192,13 +192,23 @@ featdone() {
   local repo_root="$HOME/Documents/cambrient-features"
   local existing=("$repo_root/features"/*-"$name"(N/))
   if (( ${#existing} )); then
-    local src="${existing[1]}"
-    local dest="${src}--shipped-$(date +%F)"
-    git -C "$repo_root" mv "$src" "$dest" 2>/dev/null || command mv "$src" "$dest"
     git -C "$repo_root" add -A
-    git -C "$repo_root" commit -qm "ship $name" 2>/dev/null
-    echo "featdone: shipped $(basename "$dest")"
+    git -C "$repo_root" commit -qm "ship $name" --allow-empty 2>/dev/null
+    echo "featdone: shipped $name"
   fi
+}
+
+# List features with start/ship dates from cambrient-features git history
+featlist() {
+  local repo_root="$HOME/Documents/cambrient-features"
+  local d dir name started shipped
+  for dir in "$repo_root/features"/*(N/); do
+    d="$(basename "$dir")"
+    started="${d[1,10]}"
+    name="${d[12,-1]}"
+    shipped="$(git -C "$repo_root" log --grep="^ship $name\$" --format=%as -1 2>/dev/null)"
+    printf '%-12s %-12s %s\n' "$started" "${shipped:-active}" "$name"
+  done
 }
 
 # Auto-activate venv if DEV_VENV is set by tmux session
