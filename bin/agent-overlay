@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# tmux menu of live Claude sessions; selecting one jumps to its tmux window.
+set -uo pipefail
+
+STATE_DIR="${CLORCH_STATE_DIR:-/tmp/clorch/state}"
+args=(-T " agents ")
+i=1
+
+badge() {
+  case "$1" in
+    WORKING) printf 'working' ;;
+    IDLE) printf 'READY' ;;
+    WAITING_ANSWER) printf 'QUESTION' ;;
+    WAITING_PERMISSION) printf 'PERMISSION' ;;
+    ERROR) printf 'ERROR' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+rows=""
+for f in "$STATE_DIR"/*.json; do
+  [[ -e "$f" ]] || continue
+  IFS=$'\t' read -r pid status tsess twini twin proj < <(
+    jq -r '[.pid // 0, .status // "?", .tmux_session // "", .tmux_window_index // "", .tmux_window // "", .project_name // "?"] | @tsv' "$f" 2>/dev/null)
+  [[ -n "${pid:-}" && "$pid" != "0" ]] || continue
+  kill -0 "$pid" 2>/dev/null || continue
+  [[ -n "$tsess" ]] || continue
+  rows+="$tsess"$'\x1f'"$twini"$'\x1f'"$twin"$'\x1f'"$status"$'\n'
+done
+
+last=""
+while IFS=$'\x1f' read -r tsess twini twin status; do
+  [[ -n "$tsess" ]] || continue
+  if [[ "$tsess" != "$last" ]]; then
+    args+=("-#[bold]$tsess" "" "")
+    last="$tsess"
+  fi
+  args+=("  ${twin:-?} · $(badge "$status")" "$i" "switch-client -t \"=$tsess\" ; select-window -t \"=$tsess:$twini\"")
+  i=$((i + 1))
+done < <(printf '%s' "$rows" | sort)
+
+if [[ "$i" == "1" ]]; then
+  exec tmux display-message "no live claude sessions in tmux"
+fi
+exec tmux display-menu "${args[@]}"

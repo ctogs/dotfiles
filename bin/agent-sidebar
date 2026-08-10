@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Live list of Claude Code sessions grouped by tmux session (feature).
+# Data source: clorch state files (read-only). Run inside a tmux pane; see agent-sidebar-toggle.
+set -uo pipefail
+
+STATE_DIR="${CLORCH_STATE_DIR:-/tmp/clorch/state}"
+Y=$'\033[33m'; B=$'\033[34m'; R=$'\033[31m'; G=$'\033[32m'; D=$'\033[2m'; M=$'\033[35m'; N=$'\033[0m'; BLD=$'\033[1m'
+
+icon() {
+  case "$1" in
+    WORKING) printf '%s○%s' "$B" "$N" ;;
+    IDLE) printf '%s●%s' "$Y" "$N" ;;
+    WAITING_ANSWER) printf '%s?%s' "$Y" "$N" ;;
+    WAITING_PERMISSION) printf '%s‼%s' "$R" "$N" ;;
+    ERROR) printf '%s✗%s' "$R" "$N" ;;
+    *) printf '%s·%s' "$D" "$N" ;;
+  esac
+}
+
+render() {
+  local rows f pid status tsess twin proj branch
+  rows=""
+  for f in "$STATE_DIR"/*.json; do
+    [[ -e "$f" ]] || continue
+    IFS=$'\t' read -r pid status tsess twin proj branch < <(
+      jq -r '[.pid // 0, .status // "?", .tmux_session // "", .tmux_window // "", .project_name // "?", .git_branch // ""] | @tsv' "$f" 2>/dev/null)
+    [[ -n "${pid:-}" && "$pid" != "0" ]] || continue
+    kill -0 "$pid" 2>/dev/null || continue
+    rows+="${tsess:-~other}"$'\x1f'"$twin"$'\x1f'"$status"$'\x1f'"$proj"$'\x1f'"$branch"$'\n'
+  done
+
+  printf '%s AGENTS %s\n' "$BLD" "$N"
+  if [[ -z "$rows" ]]; then
+    printf '%s (no live claude sessions)%s\n' "$D" "$N"
+    return
+  fi
+
+  local last="" tsess2 twin2 status2 proj2 branch2
+  while IFS=$'\x1f' read -r tsess2 twin2 status2 proj2 branch2; do
+    [[ -n "$tsess2" ]] || continue
+    if [[ "$tsess2" != "$last" ]]; then
+      printf '\n%s▾ %s%s\n' "$M" "${tsess2#\~}" "$N"
+      last="$tsess2"
+    fi
+    printf ' %s %s%s\n' "$(icon "$status2")" "${twin2:-$proj2}" "${branch2:+ $D$branch2$N}"
+  done < <(printf '%s' "$rows" | sort)
+
+  printf '\n%s● ready  ○ working  ‼ perm  ? question%s\n' "$D" "$N"
+  printf '%sprefix+o jump · prefix+a hide%s\n' "$D" "$N"
+}
+
+while :; do
+  out="$(render)"
+  clear
+  printf '%s\n' "$out"
+  sleep 2
+done

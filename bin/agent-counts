@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# One-line per-feature attention counts for the tmux status bar, e.g. "subfolder-tree ●2".
+set -uo pipefail
+
+STATE_DIR="${CLORCH_STATE_DIR:-/tmp/clorch/state}"
+rows=""
+
+for f in "$STATE_DIR"/*.json; do
+  [[ -e "$f" ]] || continue
+  IFS=$'\t' read -r pid status tsess < <(
+    jq -r '[.pid // 0, .status // "?", .tmux_session // ""] | @tsv' "$f" 2>/dev/null)
+  [[ -n "${pid:-}" && "$pid" != "0" ]] || continue
+  kill -0 "$pid" 2>/dev/null || continue
+  case "$status" in
+    IDLE|WAITING_ANSWER|WAITING_PERMISSION|ERROR) rows+="${tsess:-other}"$'\n' ;;
+  esac
+done
+
+[[ -n "$rows" ]] || exit 0
+printf '%s' "$rows" | sort | uniq -c | while read -r n name; do
+  printf '#[fg=colour232 bg=colour214 bold] %s ●%s #[default] ' "$name" "$n"
+done

@@ -123,6 +123,65 @@ devw() {
   tmux new-window -t "=$session" -n "$name" -c "$dir" "${env_args[@]}" "nvim"
 }
 
+export PATH="$HOME/dotfiles/bin:$PATH"
+
+# Feature session: feat <name> [repo ...]
+# One tmux session per feature: window 0 = spec folder in cambrient-features,
+# then one window per repo (worktree at ~/worktrees/<name>/<repo>) laid out
+# nvim (left) | claude (right) over a full-width shell.
+feat() {
+  local name="${1:?usage: feat <name> [repo ...]}"; shift
+  local spec_dir="$HOME/Documents/cambrient-features/features/$name"
+  mkdir -p "$spec_dir"
+  local t
+  for t in research scenarios slices; do
+    [[ -f "$spec_dir/$t.md" ]] || touch "$spec_dir/$t.md"
+  done
+
+  if ! tmux has-session -t "=$name" 2>/dev/null; then
+    tmux new-session -d -s "$name" -n spec -c "$spec_dir" "nvim ."
+  fi
+
+  local repo dir wt
+  for repo in "$@"; do
+    dir=""
+    [[ -d "$HOME/Documents/$repo/.git" ]] && dir="$HOME/Documents/$repo"
+    [[ -z "$dir" && -d "$HOME/Documents/cambrient-repos/$repo/.git" ]] && dir="$HOME/Documents/cambrient-repos/$repo"
+    if [[ -z "$dir" ]]; then
+      echo "feat: repo not found: $repo"
+      continue
+    fi
+    tmux list-windows -t "=$name" -F '#W' | grep -qx "$repo" && continue
+    wt="$HOME/worktrees/$name/$repo"
+    if [[ ! -d "$wt" ]]; then
+      git -C "$dir" worktree add -b "feat/$name" "$wt" 2>/dev/null \
+        || git -C "$dir" worktree add "$wt" "feat/$name" \
+        || { echo "feat: worktree failed for $repo"; continue; }
+    fi
+    tmux new-window -d -t "=$name" -n "$repo" -c "$wt" "nvim"
+    tmux split-window -v -l 8 -t "=$name:$repo" -c "$wt"
+    tmux split-window -h -t "=$name:$repo.0" -c "$wt" "claude"
+  done
+
+  if [[ -n "$TMUX" ]]; then
+    tmux switch-client -t "=$name"
+  else
+    tmux attach -t "=$name"
+  fi
+}
+
+# Tear down a feature: kill session, remove its worktrees (dirty ones are kept)
+featdone() {
+  local name="${1:?usage: featdone <name>}"
+  tmux kill-session -t "=$name" 2>/dev/null
+  local wt main_dir
+  for wt in "$HOME/worktrees/$name"/*(N/); do
+    main_dir="$(git -C "$wt" worktree list --porcelain 2>/dev/null | head -1 | cut -d' ' -f2)"
+    git -C "${main_dir:-$wt}" worktree remove "$wt" 2>/dev/null || echo "featdone: dirty worktree kept: $wt"
+  done
+  rmdir "$HOME/worktrees/$name" 2>/dev/null
+}
+
 # Auto-activate venv if DEV_VENV is set by tmux session
 if [[ -n "$DEV_VENV" && -f "$DEV_VENV" ]]; then
   source "$DEV_VENV"
